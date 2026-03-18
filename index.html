@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,7 +182,7 @@
   var STORAGE_KEY = 'scheduleTrackerConfig';
   // Once your Worker is deployed, replace this URL with your Worker URL
   // e.g. https://schedule-proxy.yourname.workers.dev
-  var WORKER_URL = 'https://YOUR_WORKER_URL.workers.dev';
+  var WORKER_URL = 'https://summer-paper-6880.acolaprete.workers.dev';
   // B=Fri(5), C=Sat(6), D=Sun(0), E=Mon(1), F=Tue(2), G=Wed(3), H=Thu(4)
   var DAY_TO_COL = {5:0, 6:1, 0:2, 1:3, 2:4, 3:5, 4:6};
   var COL_TO_NAME = ['Friday','Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
@@ -534,7 +535,9 @@
       function fmtBanner(next, person) {
         if (!next) return person + ': Nothing more this week';
         var d = next.day ? next.day + ' \u00b7 ' : '';
-        return person + ': ' + d + dualRange(next.slot, next.endSlot, startMins) + ' \u2014 ' + formatCat(next.task);
+        var start = slotTime(next.slot, startMins);
+        var end   = slotTime(next.endSlot, startMins);
+        return person + ': ' + d + start + ' \u2013 ' + end + ' \u2014 ' + formatCat(next.task);
       }
       document.getElementById('nextUpLabelAri').textContent = fmtBanner(ariNext, 'Ari');
       document.getElementById('nextUpLabelPooravi').textContent = fmtBanner(pooNext, 'Pooravi');
