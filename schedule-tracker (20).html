@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Schedule">
+  <title>Schedule Tracker v7</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F5F0E8; --surface: #FEFCF7;
+      --ari: #2D5016; --ari-light: #EAF2E3;
+      --pooravi: #1A3A5C; --pooravi-light: #E3ECF5;
+      --text: #1C1C1E; --muted: #8A8A8E; --open-light: #EFEFEF;
+      --shadow: 0 2px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+      --r: 20px;
+    }
+    html, body { height: 100%; background: var(--bg); font-family: 'Outfit', sans-serif; color: var(--text); overflow-x: hidden; }
+    body { min-height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    .screen { display: none; min-height: 100dvh; }
+    .screen.active { display: flex; flex-direction: column; }
+    #main { padding: 0 16px 32px; }
+    .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 8px; }
+    .app-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
+    .settings-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform .15s; }
+    .settings-btn:active { transform: scale(.92); }
+    .time-strip { text-align: center; padding: 8px 0 16px; }
+    .time-now { font-family: 'Playfair Display', serif; font-size: 52px; font-weight: 400; letter-spacing: -2px; line-height: 1; }
+    .date-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .outside-banner { background: var(--surface); border-radius: var(--r); padding: 24px; text-align: center; box-shadow: var(--shadow); margin-bottom: 16px; }
+    .outside-banner .icon { font-size: 32px; margin-bottom: 8px; }
+    .outside-banner p { color: var(--muted); font-size: 15px; margin-bottom: 6px; }
+    .next-up-label { font-weight: 600; color: var(--text); font-size: 14px; margin-top: 6px; }
+    .cards { display: flex; flex-direction: column; gap: 14px; }
+    .card { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+    .card-header { display: flex; align-items: center; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+    .card-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .ari .card-dot { background: var(--ari); }
+    .pooravi .card-dot { background: var(--pooravi); }
+    .card-name { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; flex: 1; }
+    .status-pill { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; letter-spacing: .4px; text-transform: uppercase; }
+    .ari .status-pill.busy { background: var(--ari-light); color: var(--ari); }
+    .pooravi .status-pill.busy { background: var(--pooravi-light); color: var(--pooravi); }
+    .status-pill.free { background: var(--open-light); color: var(--muted); }
+    .card-body { padding: 14px 18px 16px; }
+    .current-task { font-size: 24px; font-weight: 600; letter-spacing: -.5px; line-height: 1.2; margin-bottom: 4px; }
+    .task-until { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .progress-wrap { margin-bottom: 14px; }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .progress-bar-bg { height: 6px; border-radius: 3px; background: #E8E8E8; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }
+    .ari .progress-bar-fill { background: var(--ari); }
+    .pooravi .progress-bar-fill { background: var(--pooravi); }
+    .next-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; }
+    .ari .next-row.colored { background: var(--ari-light); }
+    .pooravi .next-row.colored { background: var(--pooravi-light); }
+    .next-row.plain { background: var(--open-light); }
+    .next-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); white-space: nowrap; }
+    .next-info { flex: 1; font-size: 14px; font-weight: 500; }
+    .next-time { font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .ari .next-time { color: var(--ari); }
+    .pooravi .next-time { color: var(--pooravi); }
+    .free-state { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px; }
+    .free-icon { font-size: 28px; }
+    .free-text { font-size: 17px; font-weight: 500; color: var(--muted); }
+    .refresh-row { text-align: center; padding: 16px 0 0; font-size: 12px; color: var(--muted); }
+    .error-bar { background: #FFEAEA; border-radius: 12px; padding: 12px 16px; font-size: 13px; color: #C0392B; margin-bottom: 12px; display: none; }
+    .error-bar.show { display: block; }
+    .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 100; transition: opacity .3s; }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #E0E0E0; border-top-color: var(--ari); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 14px; color: var(--muted); }
+    #settings { padding: 0 16px 40px; }
+    .settings-top { display: flex; align-items: center; gap: 12px; padding: 16px 0 24px; }
+    .back-btn { background: var(--surface); border: none; border-radius: 50%; width: 36px; height: 36px; box-shadow: var(--shadow); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: transform .15s; }
+    .back-btn:active { transform: scale(.92); }
+    .settings-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
+    .settings-card { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); padding: 20px; margin-bottom: 14px; }
+    .settings-card h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 14px; }
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+    .field input { width: 100%; padding: 11px 14px; border-radius: 12px; border: 1.5px solid #E0E0E0; font-family: 'Outfit', sans-serif; font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border-color .15s; }
+    .field input:focus { border-color: var(--ari); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+    .save-btn { width: 100%; padding: 15px; border-radius: var(--r); border: none; background: var(--ari); color: white; font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .15s; margin-top: 4px; }
+    .save-btn:active { opacity: .85; transform: scale(.98); }
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Fetching schedule...</div>
+</div>
+
+<div class="screen active" id="main">
+  <div class="top-bar">
+    <div class="app-title">Schedule</div>
+    <button class="settings-btn" onclick="showSettings()" aria-label="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+  <div class="time-strip">
+    <div class="time-now" id="clockDisplay">--:--</div>
+    <div class="time-now" id="caTimeDisplay" style="display:none"></div>
+    <div class="date-label" id="dateDisplay">--</div>
+  </div>
+  <div class="error-bar" id="errorBar"></div>
+  <div id="outsideBanner" class="outside-banner" style="display:none">
+    <div class="icon">&#127769;</div>
+    <p>Outside scheduled hours</p>
+    <div class="next-up-label" id="nextUpLabelAri"></div>
+    <div class="next-up-label" id="nextUpLabelPooravi"></div>
+  </div>
+  <div class="cards" id="cards">
+    <div class="card ari">
+      <div class="card-header">
+        <div class="card-dot"></div>
+        <div class="card-name">Ari</div>
+        <div class="status-pill free" id="ariPill">Free</div>
+      </div>
+      <div class="card-body" id="ariBody">
+        <div class="free-state"><div class="free-icon">&#127807;</div><div class="free-text">Not scheduled</div></div>
+      </div>
+    </div>
+    <div class="card pooravi">
+      <div class="card-header">
+        <div class="card-dot"></div>
+        <div class="card-name">Pooravi</div>
+        <div class="status-pill free" id="pooraviPill">Free</div>
+      </div>
+      <div class="card-body" id="pooraviBody">
+        <div class="free-state"><div class="free-icon">&#127919;</div><div class="free-text">Not scheduled</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refresh-row">Refreshes every 30s &middot; Last updated <span id="lastUpdated">--</span></div>
+  <div id="debugPanel" style="margin:16px 0;background:#fff;border-radius:12px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;color:#333;box-shadow:0 1px 4px rgba(0,0,0,0.1);display:none"></div>
+  <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="width:100%;padding:8px;border-radius:12px;border:1px solid #ccc;background:#f5f0e8;font-size:12px;cursor:pointer;margin-bottom:8px">Toggle Debug</button>
+</div>
+
+<div class="screen" id="settings">
+  <div class="settings-top">
+    <button class="back-btn" onclick="showMain()">&#8592;</button>
+    <div class="settings-title">Settings</div>
+  </div>
+  <div class="settings-card">
+    <h3>Google Sheets</h3>
+    <div class="field">
+      <label>API Key</label>
+      <input type="text" id="apiKey" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Spreadsheet ID</label>
+      <input type="text" id="spreadsheetId" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Sheet Tab Name</label>
+      <input type="text" id="sheetName" placeholder="Sheet1">
+    </div>
+  </div>
+  <div class="settings-card">
+    <h3>Schedule Configuration</h3>
+    <div class="field">
+      <label>Schedule Start Time</label>
+      <input type="time" id="startTime" value="09:00">
+      <div class="hint">Time represented by the first row of data</div>
+    </div>
+    <div class="field">
+      <label>Rows per week</label>
+      <input type="number" id="rowsPerWeek" value="38" min="2">
+      <div class="hint">Number of data rows in each weekly block</div>
+    </div>
+  </div>
+  <button class="save-btn" onclick="saveSettings()">Save &amp; Reload</button>
+</div>
+
+<script>
+  // All constants declared first so nothing is used before definition
+  var CA_TZ = 'America/Los_Angeles'; // schedule is always authored in CA time
+  var LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  var STORAGE_KEY = 'scheduleTrackerConfig';
+  var DEFAULT_API_KEY = 'AIzaSyAC-ZdJN5tDiXRHMgG2bQAb_H-y0ZLKhVg';
+  var DEFAULT_SHEET_ID = '1NEdgj-CFD3r29XBYRCImzgmw1fCUyYHe4cEdxqfKDxo';
+  // B=Fri(5), C=Sat(6), D=Sun(0), E=Mon(1), F=Tue(2), G=Wed(3), H=Thu(4)
+  var DAY_TO_COL = {5:0, 6:1, 0:2, 1:3, 2:4, 3:5, 4:6};
+  var COL_TO_NAME = ['Friday','Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
+  var scheduleData = null;
+
+  // ── CA TIME ──
+  // Uses formatToParts with named types - most reliable cross-browser approach
+  function getNowCA() {
+    var now = new Date();
+    var fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: CA_TZ,  // slot detection always uses CA time
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    var parts = fmt.formatToParts(now);
+    var get = function(type) {
+      var p = parts.find(function(x){ return x.type === type; });
+      return p ? p.value : '0';
+    };
+    var dayName = get('weekday');
+    var h = parseInt(get('hour'), 10);
+    if (h === 24) h = 0;
+    var m = parseInt(get('minute'), 10);
+    var jsDay = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(dayName);
+    return {h: h, m: m, jsDay: jsDay};
+  }
+
+  // ── CLOCK ──
+  function updateClock() {
+    var now = new Date();
+    var timeStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: LOCAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true
+    }).format(now);
+    var dateStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: LOCAL_TZ, weekday: 'long', month: 'short', day: 'numeric'
+    }).format(now);
+    document.getElementById('clockDisplay').textContent = timeStr;
+    var tzLabel = LOCAL_TZ.split('/').pop().replace(/_/g,' ');
+    document.getElementById('dateDisplay').textContent = dateStr + ' \u00b7 ' + tzLabel;
+    if (shouldShowCATime()) {
+      var caTimeNow = new Intl.DateTimeFormat('en-US', {
+        timeZone: CA_TZ, hour: 'numeric', minute: '2-digit', hour12: true
+      }).format(now);
+      var caEl = document.getElementById('caTimeDisplay');
+      caEl.textContent = caTimeNow;
+      caEl.style.display = 'block';
+    } else {
+      document.getElementById('caTimeDisplay').style.display = 'none';
+    }
+  }
+
+  // ── CONFIG ──
+  // Wipe any stale config from old versions (startTime was sometimes saved incorrectly)
+  (function() {
+    try {
+      var old = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (old && old.startTime && old.startTime !== '09:00') {
+        delete old.startTime;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(old));
+      }
+    } catch(e) {}
+  })();
+
+  function loadConfig() {
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) {}
+    return {
+      apiKey:        saved.apiKey        || DEFAULT_API_KEY,
+      spreadsheetId: saved.spreadsheetId || DEFAULT_SHEET_ID,
+      sheetName:     saved.sheetName     || 'Sheet1',
+      startTime:     '09:00',  // always hardcoded — never from localStorage
+      rowsPerWeek:   saved.rowsPerWeek   || 38
+    };
+  }
+
+  function saveConfig(cfg) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  }
+
+  // ── SCREENS ──
+  function showSettings() {
+    var cfg = loadConfig();
+    document.getElementById('apiKey').value = cfg.apiKey;
+    document.getElementById('spreadsheetId').value = cfg.spreadsheetId;
+    document.getElementById('sheetName').value = cfg.sheetName;
+    document.getElementById('startTime').value = cfg.startTime;
+    document.getElementById('rowsPerWeek').value = cfg.rowsPerWeek;
+    document.getElementById('main').classList.remove('active');
+    document.getElementById('settings').classList.add('active');
+  }
+
+  function showMain() {
+    document.getElementById('settings').classList.remove('active');
+    document.getElementById('main').classList.add('active');
+  }
+
+  function saveSettings() {
+    var cfg = {
+      apiKey:        document.getElementById('apiKey').value.trim()        || DEFAULT_API_KEY,
+      spreadsheetId: document.getElementById('spreadsheetId').value.trim() || DEFAULT_SHEET_ID,
+      sheetName:     document.getElementById('sheetName').value.trim()     || 'Sheet1',
+      startTime:     document.getElementById('startTime').value            || '09:00',
+      rowsPerWeek:   parseInt(document.getElementById('rowsPerWeek').value, 10) || 38
+    };
+    saveConfig(cfg);
+    showMain();
+    fetchAndRender();
+  }
+
+  // ── FETCH ──
+  // Instead of computing row positions mathematically (which breaks if there are
+  // summary/blank rows between weekly blocks), we scan column A for the date label
+  // that matches the current week, then fetch exactly rowsPerWeek rows below it.
+  async function fetchSchedule() {
+    var cfg = loadConfig();
+    var sheetEnc = encodeURIComponent(cfg.sheetName);
+    var key = cfg.apiKey;
+    var id = cfg.spreadsheetId;
+
+    // Get today's CA date parts
+    var now = new Date();
+    var todayParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: CA_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(now);
+    var getTD = function(type) { var p = todayParts.find(function(x){ return x.type === type; }); return p ? parseInt(p.value, 10) : 0; };
+    var todayMidnight = new Date(getTD('year'), getTD('month') - 1, getTD('day'), 0, 0, 0, 0);
+
+    // Fetch a large chunk of column A to find all date labels
+    var colARes = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + sheetEnc + '!A1:A2000?key=' + key);
+    if (!colARes.ok) { var e = await colARes.json(); throw new Error(e.error && e.error.message ? e.error.message : 'HTTP ' + colARes.status); }
+    var colAData = await colARes.json();
+    var colARows = colAData.values || [];
+
+    // Find all rows matching date range pattern M/D/YYYY-M/D/YYYY
+    var datePattern = /^(\d{1,2})\/(\d{1,2})\/(\d{4})-/;
+    var dateRows = []; // {rowIndex (1-based in sheet), date}
+    for (var i = 0; i < colARows.length; i++) {
+      var cell = (colARows[i][0] || '').trim();
+      var match = cell.match(datePattern);
+      if (match) {
+        var wm = parseInt(match[1], 10), wd = parseInt(match[2], 10), wy = parseInt(match[3], 10);
+        var weekStart = new Date(wy, wm - 1, wd, 0, 0, 0, 0);
+        dateRows.push({ sheetRow: i + 1, weekStart: weekStart });
+      }
+    }
+
+    if (dateRows.length === 0) throw new Error('No date labels found in column A. Make sure your sheet has dates formatted as M/D/YYYY-M/D/YYYY in column A.');
+
+    // Find which week contains today: the latest weekStart that is <= today
+    var bestRow = dateRows[0];
+    for (var j = 0; j < dateRows.length; j++) {
+      if (dateRows[j].weekStart <= todayMidnight) {
+        bestRow = dateRows[j];
+      }
+    }
+
+    // Data starts on the row immediately after the date label row
+    var rowStart = bestRow.sheetRow + 1;
+    var rowEnd = rowStart + cfg.rowsPerWeek - 1;
+
+    var dataRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + sheetEnc + '!B' + rowStart + ':H' + rowEnd + '?key=' + key);
+    if (!dataRes.ok) { var e2 = await dataRes.json(); throw new Error(e2.error && e2.error.message ? e2.error.message : 'HTTP ' + dataRes.status); }
+    var data = await dataRes.json();
+    return data.values || [];
+  }
+
+  // ── PARSE ──
+  function parseSchedule(values, cfg) {
+    var ca = getNowCA();
+    var colIndex = DAY_TO_COL[ca.jsDay] !== undefined ? DAY_TO_COL[ca.jsDay] : 0;
+    var startParts = '09:00'.split(':').map(Number); // hardcoded, not from cfg
+    var startMins = startParts[0] * 60 + startParts[1];
+    var nowMins = ca.h * 60 + ca.m;
+    var minsSinceStart = nowMins - startMins;
+    var slotIndex = Math.floor(minsSinceStart / 30);
+    var numPairs = Math.floor(values.length / 2);
+    return {values: values, colIndex: colIndex, slotIndex: slotIndex, numPairs: numPairs, minsSinceStart: minsSinceStart, startMins: startMins};
+  }
+
+  // ── HELPERS ──
+  function getCell(values, pair, offset, col) {
+    var row = values[pair * 2 + offset];
+    return row ? (row[col] || '').trim() : '';
+  }
+
+  function getPersonTask(values, pair, col, name) {
+    var c1 = getCell(values, pair, 0, col);
+    var c2 = getCell(values, pair, 1, col);
+    if (c1.indexOf(name) === 0) return c1;
+    if (c2.indexOf(name) === 0) return c2;
+    return null;
+  }
+
+  function formatCat(task) {
+    if (!task) return '';
+    return task.split(' ').slice(1).join(' ') || 'Task';
+  }
+
+  // Western US timezones (PT/MT) are within 1 hour of CA - no need to show dual times
+  function shouldShowCATime() {
+    var westernTZs = ['America/Los_Angeles','America/Vancouver','America/Tijuana',
+      'America/Denver','America/Phoenix','America/Boise','America/Edmonton'];
+    return westernTZs.indexOf(LOCAL_TZ) === -1;
+  }
+
+  // Format a CA time string from slot mins
+  function caTimeStr(totalMins, startMins) {
+    var abs = startMins + totalMins;
+    var h = Math.floor(abs / 60) % 24;
+    var m = abs % 60;
+    return (h % 12 || 12) + ':' + String(m).padStart(2,'0') + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function dualTime(totalMins, startMins) {
+    var local = minsToTime(totalMins, startMins);
+    if (!shouldShowCATime()) return local;
+    return local + ' (' + caTimeStr(totalMins, startMins) + ')';
+  }
+
+  function dualRange(startSlot, endSlot, startMins) {
+    var localStart = minsToTime(startSlot * 30, startMins);
+    var localEnd   = minsToTime(endSlot   * 30, startMins);
+    if (!shouldShowCATime()) return localStart + ' – ' + localEnd;
+    var caStart = caTimeStr(startSlot * 30, startMins);
+    var caEnd   = caTimeStr(endSlot   * 30, startMins);
+    return localStart + ' – ' + localEnd + ' (' + caStart + ' – ' + caEnd + ')';
+  }
+
+  // Get the offset in minutes between CA time and local time right now
+  function getCaToLocalOffsetMins() {
+    var now = new Date();
+    var getOffset = function(tz) {
+      var parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false
+      }).formatToParts(now);
+      var get = function(type) { var p = parts.find(function(x){ return x.type===type; }); return p ? parseInt(p.value,10) : 0; };
+      var h = get('hour'); if (h===24) h=0;
+      return h * 60 + get('minute');
+    };
+    var diff = getOffset(LOCAL_TZ) - getOffset(CA_TZ);
+    // Handle day boundary wrap
+    if (diff > 720) diff -= 1440;
+    if (diff < -720) diff += 1440;
+    return diff;
+  }
+
+  function minsToTime(totalMins, startMins) {
+    var abs = startMins + totalMins + getCaToLocalOffsetMins();
+    var h = ((Math.floor(abs / 60) % 24) + 24) % 24;
+    var m = ((abs % 60) + 60) % 60;
+    return (h % 12 || 12) + ':' + String(m).padStart(2,'0') + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function slotTime(slot, startMins) { return minsToTime(slot * 30, startMins); }
+
+  function countSpan(values, col, startSlot, numPairs, task) {
+    var count = 1;
+    var s = startSlot + 1;
+    while (s < numPairs) {
+      var c1 = getCell(values, s, 0, col);
+      var c2 = getCell(values, s, 1, col);
+      if (c1 === task || c2 === task) { count++; s++; } else break;
+    }
+    return count;
+  }
+
+  // Scan backwards to find the first slot of the current block
+  function findBlockStart(values, col, slotIndex, task) {
+    var start = slotIndex;
+    while (start > 0) {
+      var prev = start - 1;
+      var c1 = getCell(values, prev, 0, col);
+      var c2 = getCell(values, prev, 1, col);
+      if (c1 === task || c2 === task) { start = prev; } else break;
+    }
+    return start;
+  }
+
+  function findNext(values, col, fromSlot, numPairs, name) {
+    for (var i = fromSlot + 1; i < numPairs; i++) {
+      var t = getPersonTask(values, i, col, name);
+      if (t) {
+        var span = countSpan(values, col, i, numPairs, t);
+        return {task: t, slot: i, endSlot: i + span, day: null};
+      }
+    }
+    var nextCol = col + 1;
+    if (nextCol <= 6) {
+      for (var j = 0; j < numPairs; j++) {
+        var t2 = getPersonTask(values, j, nextCol, name);
+        if (t2) {
+          var span2 = countSpan(values, nextCol, j, numPairs, t2);
+          return {task: t2, slot: j, endSlot: j + span2, day: COL_TO_NAME[nextCol]};
+        }
+      }
+    }
+    return null;
+  }
+
+  // kept for banner use
+  function taskSpanSlots(values, col, startSlot, numPairs, task) {
+    return countSpan(values, col, startSlot, numPairs, task);
+  }
+
+  // ── RENDER PERSON ──
+  function renderPerson(id, name, parsed) {
+    var values = parsed.values, colIndex = parsed.colIndex, slotIndex = parsed.slotIndex;
+    var numPairs = parsed.numPairs, minsSinceStart = parsed.minsSinceStart, startMins = parsed.startMins;
+    var pill = document.getElementById(id + 'Pill');
+    var body = document.getElementById(id + 'Body');
+    var inSched = slotIndex >= 0 && slotIndex < numPairs;
+    var curTask = inSched ? getPersonTask(values, slotIndex, colIndex, name) : null;
+    var minsIntoSlot = ((minsSinceStart % 30) + 30) % 30;
+
+    // Find full block boundaries for current task
+    var blockStartSlot = curTask ? findBlockStart(values, colIndex, slotIndex, curTask) : slotIndex;
+    var blockEndSlot   = curTask ? blockStartSlot + countSpan(values, colIndex, blockStartSlot, numPairs, curTask) : slotIndex + 1;
+    var totalBlockMins = (blockEndSlot - blockStartSlot) * 30;
+    var minsIntoBlock  = (slotIndex - blockStartSlot) * 30 + minsIntoSlot;
+    var minsLeft       = totalBlockMins - minsIntoBlock;
+    var pct            = Math.round((minsIntoBlock / totalBlockMins) * 100);
+
+    var searchFrom = inSched ? slotIndex : numPairs - 1;
+    var next = findNext(values, colIndex, searchFrom, numPairs, name);
+
+    function makeNextRow(colored) {
+      if (!next) return '<div class="next-row plain"><span class="next-lbl">Week</span><span class="next-info" style="color:var(--muted)">No more tasks this week</span></div>';
+      var dayStr = next.day || 'Next';
+      var timeStr = (next.day ? next.day + ' · ' : '') + dualRange(next.slot, next.endSlot, startMins);
+      return '<div class="next-row ' + (colored ? 'colored' : 'plain') + '"><span class="next-lbl">' + dayStr + '</span><span class="next-info">' + formatCat(next.task) + '</span><span class="next-time">' + timeStr + '</span></div>';
+    }
+
+    if (curTask) {
+      pill.textContent = 'Busy'; pill.className = 'status-pill busy';
+      // timeLabel now set above
+      var taskStart  = dualRange(blockStartSlot, blockEndSlot, startMins);
+      var taskEnd    = ''; // included in taskStart via dualRange
+      function fmtDuration(mins) {
+        if (mins < 60) return mins + ' min';
+        var h = Math.floor(mins / 60), m = mins % 60;
+        return h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+      }
+      var timeLabel  = fmtDuration(minsLeft) + ' left';
+      var timeInLabel = fmtDuration(minsIntoBlock) + ' in';
+      body.innerHTML = '<div class="current-task">' + formatCat(curTask) + '</div>' +
+        '<div class="task-until">' + taskStart + '</div>' +
+        '<div class="progress-wrap"><div class="progress-meta"><span>' + timeInLabel + '</span><span>' + timeLabel + '</span></div>' +
+        '<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div></div>' +
+        makeNextRow(true);
+    } else {
+      pill.textContent = 'Free'; pill.className = 'status-pill free';
+      var icon = name === 'Ari' ? '&#127807;' : '&#127919;';
+      body.innerHTML = '<div class="free-state" style="margin-bottom:12px"><div class="free-icon">' + icon + '</div><div class="free-text">Currently free</div></div>' +
+        (inSched ? makeNextRow(false) : '');
+    }
+  }
+
+  // ── RENDER ALL ──
+  function renderAll(values) {
+    var cfg = loadConfig();
+    var parsed = parseSchedule(values, cfg);
+    var slotIndex = parsed.slotIndex, numPairs = parsed.numPairs, startMins = parsed.startMins;
+    var banner = document.getElementById('outsideBanner');
+    var cards = document.getElementById('cards');
+
+    if (slotIndex < 0 || slotIndex >= numPairs) {
+      banner.style.display = 'block';
+      cards.style.display = 'none';
+      var searchFrom = slotIndex < 0 ? -1 : numPairs - 1;
+      var ariNext  = findNext(parsed.values, parsed.colIndex, searchFrom, numPairs, 'Ari');
+      var pooNext  = findNext(parsed.values, parsed.colIndex, searchFrom, numPairs, 'Pooravi');
+
+      function fmtBanner(next, person) {
+        if (!next) return person + ': Nothing more this week';
+        var d = next.day ? next.day + ' \u00b7 ' : '';
+        var start = slotTime(next.slot, startMins);
+        var end   = slotTime(next.endSlot, startMins);
+        return person + ': ' + d + start + ' \u2013 ' + end + ' \u2014 ' + formatCat(next.task);
+      }
+      document.getElementById('nextUpLabelAri').textContent = fmtBanner(ariNext, 'Ari');
+      document.getElementById('nextUpLabelPooravi').textContent = fmtBanner(pooNext, 'Pooravi');
+    } else {
+      banner.style.display = 'none';
+      cards.style.display = 'flex';
+      renderPerson('ari', 'Ari', parsed);
+      renderPerson('pooravi', 'Pooravi', parsed);
+    }
+
+    // Debug: show raw slot data for today's column
+    try {
+      var dbg = 'colIndex=' + parsed.colIndex + ' slotIndex=' + parsed.slotIndex + ' numPairs=' + parsed.numPairs + '\n';
+      dbg += 'Start: 9:00 AM\n\n';
+      for (var di = 0; di < Math.min(parsed.numPairs, 20); di++) {
+        var r0 = parsed.values[di*2]   ? (parsed.values[di*2][parsed.colIndex]   || '(empty)') : '(missing)';
+        var r1 = parsed.values[di*2+1] ? (parsed.values[di*2+1][parsed.colIndex] || '(empty)') : '(missing)';
+        var t = slotTime(di, parsed.startMins);
+        dbg += 'Pair ' + di + ' (' + t + '): [' + r0.trim() + '] / [' + r1.trim() + ']\n';
+      }
+      var aN = findNext(parsed.values, parsed.colIndex, parsed.slotIndex, parsed.numPairs, 'Ari');
+      var pN = findNext(parsed.values, parsed.colIndex, parsed.slotIndex, parsed.numPairs, 'Pooravi');
+      dbg += '\nAri next: ' + JSON.stringify(aN);
+      dbg += '\nPooravi next: ' + JSON.stringify(pN);
+
+      // Also dump tomorrow's column
+      var nextCol = parsed.colIndex + 1;
+      if (nextCol <= 6) {
+        dbg += '\n\n--- NEXT COL (' + COL_TO_NAME[nextCol] + ') ---\n';
+        for (var dk = 0; dk < Math.min(parsed.numPairs, 20); dk++) {
+          var n0 = parsed.values[dk*2]   ? (parsed.values[dk*2][nextCol]   || '(empty)') : '(missing)';
+          var n1 = parsed.values[dk*2+1] ? (parsed.values[dk*2+1][nextCol] || '(empty)') : '(missing)';
+          dbg += 'Pair ' + dk + ' (' + slotTime(dk, parsed.startMins) + '): [' + n0.trim() + '] / [' + n1.trim() + ']\n';
+        }
+      }
+      document.getElementById('debugPanel').textContent = dbg;
+    } catch(de) { document.getElementById('debugPanel').textContent = 'debug error: ' + de; }
+
+    document.getElementById('lastUpdated').textContent = new Intl.DateTimeFormat('en-US', {
+      timeZone: LOCAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true
+    }).format(new Date());
+  }
+
+  // ── FETCH + RENDER ──
+  async function fetchAndRender() {
+    showLoading(); showError('');
+    try {
+      scheduleData = await fetchSchedule();
+      renderAll(scheduleData);
+    } catch(err) {
+      showError('Could not load schedule: ' + err.message);
+    } finally {
+      hideLoading();
+    }
+  }
+
+  function showLoading() { document.getElementById('loading').classList.remove('hidden'); }
+  function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+  function showError(msg) {
+    var b = document.getElementById('errorBar');
+    b.textContent = msg;
+    if (msg) b.classList.add('show'); else b.classList.remove('show');
+  }
+
+  // ── INIT ──
+  updateClock();
+  setInterval(updateClock, 1000);
+  setInterval(function() { if (scheduleData) renderAll(scheduleData); }, 30000);
+  setInterval(fetchAndRender, 5 * 60 * 1000);
+  fetchAndRender();
+</script>
+</body>
+</html>
