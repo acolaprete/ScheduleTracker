@@ -154,14 +154,6 @@
   <div class="settings-card">
     <h3>Google Sheets</h3>
     <div class="field">
-      <label>API Key</label>
-      <input type="text" id="apiKey" autocomplete="off" autocorrect="off" spellcheck="false">
-    </div>
-    <div class="field">
-      <label>Spreadsheet ID</label>
-      <input type="text" id="spreadsheetId" autocomplete="off" autocorrect="off" spellcheck="false">
-    </div>
-    <div class="field">
       <label>Sheet Tab Name</label>
       <input type="text" id="sheetName" placeholder="Sheet1">
     </div>
@@ -187,8 +179,9 @@
   var CA_TZ = 'America/Los_Angeles'; // schedule is always authored in CA time
   var LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
   var STORAGE_KEY = 'scheduleTrackerConfig';
-  var DEFAULT_API_KEY = 'AIzaSyAC-ZdJN5tDiXRHMgG2bQAb_H-y0ZLKhVg';
-  var DEFAULT_SHEET_ID = '1NEdgj-CFD3r29XBYRCImzgmw1fCUyYHe4cEdxqfKDxo';
+  // Once your Worker is deployed, replace this URL with your Worker URL
+  // e.g. https://schedule-proxy.yourname.workers.dev
+  var WORKER_URL = 'summer-paper-6880.acolaprete.workers.dev';
   // B=Fri(5), C=Sat(6), D=Sun(0), E=Mon(1), F=Tue(2), G=Wed(3), H=Thu(4)
   var DAY_TO_COL = {5:0, 6:1, 0:2, 1:3, 2:4, 3:5, 4:6};
   var COL_TO_NAME = ['Friday','Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
@@ -243,26 +236,13 @@
   }
 
   // ── CONFIG ──
-  // Wipe any stale config from old versions (startTime was sometimes saved incorrectly)
-  (function() {
-    try {
-      var old = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (old && old.startTime && old.startTime !== '09:00') {
-        delete old.startTime;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(old));
-      }
-    } catch(e) {}
-  })();
-
   function loadConfig() {
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) {}
     return {
-      apiKey:        saved.apiKey        || DEFAULT_API_KEY,
-      spreadsheetId: saved.spreadsheetId || DEFAULT_SHEET_ID,
-      sheetName:     saved.sheetName     || 'Sheet1',
-      startTime:     '09:00',  // always hardcoded — never from localStorage
-      rowsPerWeek:   saved.rowsPerWeek   || 38
+      sheetName:   saved.sheetName   || 'Sheet1',
+      startTime:   '09:00',
+      rowsPerWeek: saved.rowsPerWeek || 38
     };
   }
 
@@ -273,8 +253,6 @@
   // ── SCREENS ──
   function showSettings() {
     var cfg = loadConfig();
-    document.getElementById('apiKey').value = cfg.apiKey;
-    document.getElementById('spreadsheetId').value = cfg.spreadsheetId;
     document.getElementById('sheetName').value = cfg.sheetName;
     document.getElementById('startTime').value = cfg.startTime;
     document.getElementById('rowsPerWeek').value = cfg.rowsPerWeek;
@@ -289,11 +267,9 @@
 
   function saveSettings() {
     var cfg = {
-      apiKey:        document.getElementById('apiKey').value.trim()        || DEFAULT_API_KEY,
-      spreadsheetId: document.getElementById('spreadsheetId').value.trim() || DEFAULT_SHEET_ID,
-      sheetName:     document.getElementById('sheetName').value.trim()     || 'Sheet1',
-      startTime:     document.getElementById('startTime').value            || '09:00',
-      rowsPerWeek:   parseInt(document.getElementById('rowsPerWeek').value, 10) || 38
+      sheetName:   document.getElementById('sheetName').value.trim() || 'Sheet1',
+      startTime:   '09:00',
+      rowsPerWeek: parseInt(document.getElementById('rowsPerWeek').value, 10) || 38
     };
     saveConfig(cfg);
     showMain();
@@ -301,14 +277,16 @@
   }
 
   // ── FETCH ──
-  // Instead of computing row positions mathematically (which breaks if there are
-  // summary/blank rows between weekly blocks), we scan column A for the date label
-  // that matches the current week, then fetch exactly rowsPerWeek rows below it.
+  async function workerFetch(range) {
+    var cfg = loadConfig();
+    var url = WORKER_URL + '?sheet=' + encodeURIComponent(cfg.sheetName) + '&range=' + encodeURIComponent(range);
+    var res = await fetch(url);
+    if (!res.ok) { var e = await res.json(); throw new Error(e.error || 'HTTP ' + res.status); }
+    return await res.json();
+  }
+
   async function fetchSchedule() {
     var cfg = loadConfig();
-    var sheetEnc = encodeURIComponent(cfg.sheetName);
-    var key = cfg.apiKey;
-    var id = cfg.spreadsheetId;
 
     // Get today's CA date parts
     var now = new Date();
@@ -318,42 +296,32 @@
     var getTD = function(type) { var p = todayParts.find(function(x){ return x.type === type; }); return p ? parseInt(p.value, 10) : 0; };
     var todayMidnight = new Date(getTD('year'), getTD('month') - 1, getTD('day'), 0, 0, 0, 0);
 
-    // Fetch a large chunk of column A to find all date labels
-    var colARes = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + sheetEnc + '!A1:A2000?key=' + key);
-    if (!colARes.ok) { var e = await colARes.json(); throw new Error(e.error && e.error.message ? e.error.message : 'HTTP ' + colARes.status); }
-    var colAData = await colARes.json();
+    // Scan column A for date labels
+    var colAData = await workerFetch('A1:A2000');
     var colARows = colAData.values || [];
 
-    // Find all rows matching date range pattern M/D/YYYY-M/D/YYYY
     var datePattern = /^(\d{1,2})\/(\d{1,2})\/(\d{4})-/;
-    var dateRows = []; // {rowIndex (1-based in sheet), date}
+    var dateRows = [];
     for (var i = 0; i < colARows.length; i++) {
       var cell = (colARows[i][0] || '').trim();
       var match = cell.match(datePattern);
       if (match) {
         var wm = parseInt(match[1], 10), wd = parseInt(match[2], 10), wy = parseInt(match[3], 10);
-        var weekStart = new Date(wy, wm - 1, wd, 0, 0, 0, 0);
-        dateRows.push({ sheetRow: i + 1, weekStart: weekStart });
+        dateRows.push({ sheetRow: i + 1, weekStart: new Date(wy, wm - 1, wd, 0, 0, 0, 0) });
       }
     }
 
-    if (dateRows.length === 0) throw new Error('No date labels found in column A. Make sure your sheet has dates formatted as M/D/YYYY-M/D/YYYY in column A.');
+    if (dateRows.length === 0) throw new Error('No date labels found in column A.');
 
-    // Find which week contains today: the latest weekStart that is <= today
     var bestRow = dateRows[0];
     for (var j = 0; j < dateRows.length; j++) {
-      if (dateRows[j].weekStart <= todayMidnight) {
-        bestRow = dateRows[j];
-      }
+      if (dateRows[j].weekStart <= todayMidnight) bestRow = dateRows[j];
     }
 
-    // Data starts on the row immediately after the date label row
     var rowStart = bestRow.sheetRow + 1;
-    var rowEnd = rowStart + cfg.rowsPerWeek - 1;
+    var rowEnd   = rowStart + cfg.rowsPerWeek - 1;
 
-    var dataRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + sheetEnc + '!B' + rowStart + ':H' + rowEnd + '?key=' + key);
-    if (!dataRes.ok) { var e2 = await dataRes.json(); throw new Error(e2.error && e2.error.message ? e2.error.message : 'HTTP ' + dataRes.status); }
-    var data = await dataRes.json();
+    var data = await workerFetch('B' + rowStart + ':H' + rowEnd);
     return data.values || [];
   }
 
