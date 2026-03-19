@@ -610,7 +610,7 @@
   setInterval(updateClock, 1000);
   setInterval(function() { if (scheduleData) renderAll(scheduleData); }, 30000);
   setInterval(fetchAndRender, 5 * 60 * 1000);
-  fetchAndRender();
+  window.addEventListener('load', fetchAndRender);;
 </script>
 </body>
 </html>
