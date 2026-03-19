@@ -141,7 +141,11 @@
       </div>
     </div>
   </div>
-  <div class="refresh-row">Refreshes every 30s &middot; Last updated <span id="lastUpdated">--</span></div>
+  <div class="refresh-row">
+    Last updated <span id="lastUpdated">--</span>
+    &middot;
+    <button onclick="fetchAndRender()" style="background:none;border:none;color:var(--ari);font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;">Refresh</button>
+  </div>
   <div id="debugPanel" style="margin:16px 0;background:#fff;border-radius:12px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;color:#333;box-shadow:0 1px 4px rgba(0,0,0,0.1);display:none"></div>
   <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="width:100%;padding:8px;border-radius:12px;border:1px solid #ccc;background:#f5f0e8;font-size:12px;cursor:pointer;margin-bottom:8px">Toggle Debug</button>
 </div>
@@ -181,7 +185,7 @@
   var STORAGE_KEY = 'scheduleTrackerConfig';
   // Once your Worker is deployed, replace this URL with your Worker URL
   // e.g. https://schedule-proxy.yourname.workers.dev
-  var WORKER_URL = 'https://summer-paper-6880.acolaprete.workers.dev';
+  var WORKER_URL = 'https://YOUR_WORKER_URL.workers.dev';
   // B=Fri(5), C=Sat(6), D=Sun(0), E=Mon(1), F=Tue(2), G=Wed(3), H=Thu(4)
   var DAY_TO_COL = {5:0, 6:1, 0:2, 1:3, 2:4, 3:5, 4:6};
   var COL_TO_NAME = ['Friday','Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
@@ -570,6 +574,8 @@
           dbg += 'Pair ' + dk + ' (' + slotTime(dk, parsed.startMins) + '): [' + n0.trim() + '] / [' + n1.trim() + ']\n';
         }
       }
+      dbg += '\n\nLOCAL_TZ: ' + LOCAL_TZ;
+      dbg += '\nshouldShowCATime: ' + shouldShowCATime();
       document.getElementById('debugPanel').textContent = dbg;
     } catch(de) { document.getElementById('debugPanel').textContent = 'debug error: ' + de; }
 
